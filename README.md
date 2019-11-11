@@ -1,3 +1,9 @@
+This is a sample CDK script to demonstrate :
+
+- how to create a VPC 
+- how to start EC2 instances with Role and UserData script
+- how to attach a Ec2 instance to a VPC and a Security Groups
+
 # Useful commands
 
  * `npm run build`   compile typescript to js
