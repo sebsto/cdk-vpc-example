@@ -2,8 +2,8 @@ import cdk = require('@aws-cdk/core');
 import ec2 = require('@aws-cdk/aws-ec2');
 import assets = require('@aws-cdk/aws-s3-assets');
 
-import { Role, ServicePrincipal, CfnInstanceProfile } from '@aws-cdk/aws-iam'
-import { Fn, Tag, Resource } from '@aws-cdk/core';
+import { Role, ServicePrincipal, CfnInstanceProfile, ManagedPolicy } from '@aws-cdk/aws-iam'
+import { Fn, Tag, Resource, CfnOutput } from '@aws-cdk/core';
 import { AmazonLinuxImage, UserData } from '@aws-cdk/aws-ec2';
 
 //
@@ -13,13 +13,59 @@ const REGION='us-west-2';
 
 
 /*
-   To retrieve the application Public DNS Name of the application instance, 
-   run this command after deployment :
 
+To retrieve the application Public DNS Name of the application instance, 
+run this command after deployment :
+
+# filter version
 aws --region us-west-2 ec2 describe-instances \
     --filters "Name=tag-key,Values=Name" "Name=tag-value,Values=application" \
     --query "Reservations[].Instances[].NetworkInterfaces[].Association.PublicDnsName" \
     --output text
+
+# jmespath version
+aws --region us-west-2 ec2 describe-instances \
+    --query "Reservations[].Instances[] | [?Tags[?Key=='Name' && Value=='application']].NetworkInterfaces[].Association.PublicDnsName" \
+    --output text
+
+To retrieve the VPC ID, run this command after deployment:
+
+aws --region us-west-2 cloudformation describe-stacks \
+    --stack-name VpcIngressRoutingStack \
+    --query "Stacks[].Outputs[?OutputKey=='VPCID'].OutputValue" \
+    --output text    
+
+To retrieve the ENI ID, runt his command after deployment:
+
+aws --region us-west-2 ec2 describe-instances     \
+    --query "Reservations[].Instances[] | [?Tags[?Key=='Name' && Value=='application']].NetworkInterfaces[].NetworkInterfaceId" \
+    --output text
+
+To retrieve the Internet Gateway ID :
+
+aws --region us-west-2 ec2 describe-internet-gateways  \
+    --query "InternetGateways[] | [?Attachments[?VpcId=='${VPC_ID}']].InternetGatewayId" \
+    --output text
+
+To retrieve the application subnet :
+
+SUBNET_ID=$(aws --region us-west-2 ec2 describe-instances         \
+                --query "Reservations[].Instances[] | [?Tags[?Key=='Name' && Value=='application']].NetworkInterfaces[].SubnetId" \
+                --output text)
+
+To retrieve the application's subnet routing table :
+
+aws --region us-west-2 ec2 describe-route-tables       \
+    --query "RouteTables[?VpcId=='${VPC_ID}'] | [?Associations[?SubnetId=='${SUBNET_ID}']].RouteTableId" \
+    --output text
+
+To SSH connect to the appliance :
+
+APPLIANCE_ID=$(aws --region $AWS_REGION ec2 describe-instances \
+                   --query "Reservations[].Instances[] | [?Tags[?Key=='Name' && Value=='appliance']].InstanceId \
+                   --output text)
+aws -- region $AWS_REGION ssm start-session --target $APPLIANCE_ID 
+
 */
 
 /**
@@ -104,7 +150,7 @@ export class VpcIngressRoutingStack extends cdk.Stack {
         });
 
         //
-        // create a security group authorizing inbound traffic on pourt 80
+        // create a security group authorizing inbound traffic on port 80
         //
         const webSecurityGroup = new ec2.SecurityGroup(this, 'WebSecurityGroup', {
             vpc,
@@ -113,23 +159,42 @@ export class VpcIngressRoutingStack extends cdk.Stack {
         });
         webSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'allow HTTP access from the world');
 
+        //
+        // create a security group authorizing inbound traffic on port 80
+        //
+        const sshSecurityGroup = new ec2.SecurityGroup(this, 'SSHSecurityGroup', {
+            vpc,
+            description: 'Allow SSH access to ec2 instances',
+            allowAllOutbound: true   // Can be set to false
+        });
+        sshSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'allow SSH access from the world');
+
+        //
+        // define the IAM role that will allow the EC2 instance to communicate with SSM 
+        //
+        const ssmRole = new Role(this, 'NewsBlogSSMRole', {
+            assumedBy: new ServicePrincipal('ec2.amazonaws.com')
+        });
+        ssmRole.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'));
+
         // launch an 'appliance' EC2 instance in the first public subnet
         const appliance = new Ec2(this, 'NewsBlogAppliance', {
             image: new AmazonLinuxImage(),
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
             subnet: vpc.publicSubnets[0],
             name: 'appliance',
-            securityGroup: webSecurityGroup
+            role: ssmRole,
+            securityGroup: sshSecurityGroup
         });
 
         //
         // define the IAM role that will allow the EC2 instance to download web site from S3 
         //
-        const role = new Role(this, 'NewsBlogRole', {
+        const s3Role = new Role(this, 'NewsBlogS3Role', {
             assumedBy: new ServicePrincipal('ec2.amazonaws.com')
         });
         // allow instance to communicate with s3
-        asset.grantRead(role);
+        asset.grantRead(s3Role);
 
         //
         // define a user data script to install & launch a web server
@@ -151,10 +216,11 @@ export class VpcIngressRoutingStack extends cdk.Stack {
             subnet: vpc.publicSubnets[1],
             name: 'application',
             securityGroup: webSecurityGroup,
-            role: role,
+            role: s3Role,
             userData: userData
         });
 
+        new CfnOutput(this, 'VPC-ID', { value: vpc.vpcId });
     }
 }
 
