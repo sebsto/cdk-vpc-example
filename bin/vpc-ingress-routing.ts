@@ -6,6 +6,22 @@ import { Role, ServicePrincipal, CfnInstanceProfile } from '@aws-cdk/aws-iam'
 import { Fn, Tag, Resource } from '@aws-cdk/core';
 import { AmazonLinuxImage, UserData } from '@aws-cdk/aws-ec2';
 
+//
+// CHANGE THIS to deploy in the Region you want
+//
+const REGION='us-west-2';
+
+
+/*
+   To retrieve the application Public DNS Name of the application instance, 
+   run this command after deployment :
+
+aws --region us-west-2 ec2 describe-instances \
+    --filters "Name=tag-key,Values=Name" "Name=tag-value,Values=application" \
+    --query "Reservations[].Instances[].NetworkInterfaces[].Association.PublicDnsName" \
+    --output text
+*/
+
 /**
  * Create my own Ec2 resource and Ec2 props as these are not yet defined in CDK
  * These classes abstract low level details from CloudFormation
@@ -56,6 +72,9 @@ class Ec2 extends Resource {
     }
 }
 
+//
+// The stack for this demo
+//
 export class VpcIngressRoutingStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
@@ -99,7 +118,7 @@ export class VpcIngressRoutingStack extends cdk.Stack {
             image: new AmazonLinuxImage(),
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
             subnet: vpc.publicSubnets[0],
-            name: "appliance",
+            name: 'appliance',
             securityGroup: webSecurityGroup
         });
 
@@ -130,7 +149,7 @@ export class VpcIngressRoutingStack extends cdk.Stack {
             image: new AmazonLinuxImage(),
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
             subnet: vpc.publicSubnets[1],
-            name: "application",
+            name: 'application',
             securityGroup: webSecurityGroup,
             role: role,
             userData: userData
@@ -142,5 +161,5 @@ export class VpcIngressRoutingStack extends cdk.Stack {
 
 const app = new cdk.App();
 new VpcIngressRoutingStack(app, 'VpcIngressRoutingStack', {
-    env: { region: "us-west-2" }
+    env: { region: REGION }
 });
