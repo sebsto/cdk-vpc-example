@@ -150,24 +150,15 @@ export class VpcIngressRoutingStack extends cdk.Stack {
         });
 
         //
-        // create a security group authorizing inbound traffic on port 80
+        // create a security group authorizing inbound traffic on port 80 and 22
         //
-        const webSecurityGroup = new ec2.SecurityGroup(this, 'WebSecurityGroup', {
+        const demoSecurityGroup = new ec2.SecurityGroup(this, 'DemoSecurityGroup', {
             vpc,
-            description: 'Allow HTTP access to ec2 instances',
+            description: 'Allow access to ec2 instances',
             allowAllOutbound: true   // Can be set to false
         });
-        webSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'allow HTTP access from the world');
-
-        //
-        // create a security group authorizing inbound traffic on port 80
-        //
-        const sshSecurityGroup = new ec2.SecurityGroup(this, 'SSHSecurityGroup', {
-            vpc,
-            description: 'Allow SSH access to ec2 instances',
-            allowAllOutbound: true   // Can be set to false
-        });
-        sshSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'allow SSH access from the world');
+        demoSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'allow HTTP access from the world');
+        demoSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'allow SSH access from the world');
 
         //
         // define the IAM role that will allow the EC2 instance to communicate with SSM 
@@ -184,7 +175,7 @@ export class VpcIngressRoutingStack extends cdk.Stack {
             subnet: vpc.publicSubnets[0],
             name: 'appliance',
             role: ssmRole,
-            securityGroup: sshSecurityGroup
+            securityGroup: demoSecurityGroup
         });
 
         //
@@ -215,7 +206,7 @@ export class VpcIngressRoutingStack extends cdk.Stack {
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO),
             subnet: vpc.publicSubnets[1],
             name: 'application',
-            securityGroup: webSecurityGroup,
+            securityGroup: demoSecurityGroup,
             role: s3Role,
             userData: userData
         });
