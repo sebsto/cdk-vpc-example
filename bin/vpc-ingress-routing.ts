@@ -62,9 +62,9 @@ aws --region us-west-2 ec2 describe-route-tables       \
 To SSH connect to the appliance :
 
 APPLIANCE_ID=$(aws --region $AWS_REGION ec2 describe-instances \
-                   --query "Reservations[].Instances[] | [?Tags[?Key=='Name' && Value=='appliance']].InstanceId \
+                   --query "Reservations[].Instances[] | [?Tags[?Key=='Name' && Value=='appliance']].InstanceId" \
                    --output text)
-aws -- region $AWS_REGION ssm start-session --target $APPLIANCE_ID 
+aws --region $AWS_REGION ssm start-session --target $APPLIANCE_ID 
 
 */
 
@@ -150,7 +150,7 @@ export class VpcIngressRoutingStack extends cdk.Stack {
         });
 
         //
-        // create a security group authorizing inbound traffic on port 80 and 22
+        // create a security group authorizing inbound traffic on port 80 
         //
         const demoSecurityGroup = new ec2.SecurityGroup(this, 'DemoSecurityGroup', {
             vpc,
@@ -158,7 +158,6 @@ export class VpcIngressRoutingStack extends cdk.Stack {
             allowAllOutbound: true   // Can be set to false
         });
         demoSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'allow HTTP access from the world');
-        demoSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'allow SSH access from the world');
 
         //
         // define the IAM role that will allow the EC2 instance to communicate with SSM 
