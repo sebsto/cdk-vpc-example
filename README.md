@@ -10,6 +10,7 @@ This sample CDK script demonstrates :
 
 **This code uses CDK v1, to see an example with CDK v2, check this repo**
 
+[https://github.com/sebsto/cdkv2-vpc-example](https://github.com/sebsto/cdkv2-vpc-example)
 
 
 # Useful commands
