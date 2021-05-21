@@ -9,7 +9,8 @@ import { AmazonLinuxImage, UserData } from '@aws-cdk/aws-ec2';
 //
 // CHANGE THIS to deploy in the Region you want
 //
-const REGION='us-west-2';
+// const REGION='us-west-2';
+const REGION='eu-west-1';
 
 
 /*
